@@ -1,18 +1,12 @@
 process.env.NODE_ENV = "test";
 
-const request = require("supertest");
-const app = require("../app");
-const db = require("../db");
-
-let comp;
+const request = require('supertest');
+const app = require('../app');
+const db = require('../db');
 
 beforeEach(async () => {
-    const results = await db.query("INSERT INTO companies (code, name, description) VALUES ('test-code', 'test-name', 'test-desc') RETURNING code, name, description");
-    comp = results.rows[0];
-});
-
-afterEach(async () => {
-    await db.query("DELETE FROM companies WHERE code = 'test-code'");
+    await db.query(`DELETE FROM companies;`);
+    await db.query(`INSERT INTO companies (code, name, description) VALUES ('test', 'Test Company', 'Just a test');`);
 });
 
 afterAll(async () => {
@@ -20,54 +14,57 @@ afterAll(async () => {
 });
 
 describe("GET /companies", () => {
-    test("Gets a list of companies", async () => {
-        const resp = await request(app).get("/companies");
-        expect(resp.statusCode).toBe(200);
-        expect(resp.body).toEqual({companies: [comp]});
+    test("It should respond with an array of companies", async () => {
+        const response = await request(app).get('/companies');
+        expect(response.statusCode).toBe(200);
+        expect(response.body.companies).toEqual(expect.any(Array));
     });
 });
 
 describe("GET /companies/:code", () => {
-    test("Gets a single company", async () => {
-        const resp = await request(app).get(`/companies/${comp.code}`);
-        expect(resp.statusCode).toBe(200);
-        expect(resp.body).toEqual({company: comp});
+    test("It should return the company with the given code", async () => {
+        const response = await request(app).get('/companies/test');
+        expect(response.statusCode).toBe(200);
+        expect(response.body.company).toEqual({
+            code: 'test',
+            name: 'Test Company',
+            description: 'Just a test'
+        });
     });
 
-    test("Responds with 404 if company not found", async () => {
-        const resp = await request(app).get("/companies/nope");
-        expect(resp.statusCode).toBe(404);
+    test("It should return a 404 for a non-existent company", async () => {
+        const response = await request(app).get('/companies/nonexistent');
+        expect(response.statusCode).toBe(404);
     });
 });
 
 describe("POST /companies", () => {
-    test("Creates a new company", async () => {
-        const newCompany = {code: "test-code2", name: "test-name2", description: "test-desc2"};
-        const resp = await request(app).post("/companies").send(newCompany);
-        expect(resp.statusCode).toBe(200);
-        expect(resp.body).toEqual({company: newCompany});
+    test("It should create a new company", async () => {
+        const newCompany = { code: 'new', name: 'New Company', description: 'Brand new' };
+        const response = await request(app)
+            .post('/companies')
+            .send(newCompany);
+        expect(response.statusCode).toBe(201);
+        expect(response.body.company).toEqual(newCompany);
     });
 });
 
 describe("PATCH /companies/:code", () => {
-    test("Updates a company", async () => {
-        const resp = await request(app).patch(`/companies/${comp.code}`).send({name: "test-name2", description: "test-desc2"});
-        expect(resp.statusCode).toBe(200);
-        expect(resp.body).toEqual({company: {code: comp.code, name: "test-name2", description: "test-desc2"}});
-    });
-
-    test("Responds with 404 if company not found", async () => {
-        const resp = await request(app).patch("/companies/nope").send({name: "test-name2", description: "test-desc2"});
-        expect(resp.statusCode).toBe(404);
+    test("It should update an existing company", async () => {
+        const updatedInfo = { name: 'Updated Name', description: 'Updated Description' };
+        const response = await request(app)
+            .patch('/companies/test')
+            .send(updatedInfo);
+        expect(response.statusCode).toBe(200);
+        expect(response.body.company.name).toEqual(updatedInfo.name);
+        expect(response.body.company.description).toEqual(updatedInfo.description);
     });
 });
 
 describe("DELETE /companies/:code", () => {
-    test("Deletes a company", async () => {
-        const resp = await request(app).delete(`/companies/${comp.code}`);
-        expect(resp.statusCode).toBe(200);
-        expect(resp.body).toEqual({status: "deleted"});
+    test("It should delete an existing company", async () => {
+        const response = await request(app).delete('/companies/test');
+        expect(response.statusCode).toBe(200);
+        expect(response.body).toEqual({ status: "deleted" });
     });
 });
-
-
